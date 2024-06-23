@@ -7,19 +7,6 @@ const fs = require('fs');
 const app = express();
 const port = 3000;
 
-// Save the messages to a file every 1 hour
-function saveMessagesToFile() {
-    const filePath = path.join(__dirname, 'messages.json');
-    fs.writeFile(filePath, JSON.stringify(messages, null, 2), (err) => {
-        if (err) {
-            console.error('Error saving messages to file:', err);
-        } else {
-            console.log('Messages saved to file:', filePath);
-        }
-    });
-}
-
-
 // Middleware to parse JSON bodies
 app.use(bodyParser.json());
 
@@ -28,20 +15,40 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // In-memory storage for messages
 let messages = ['I love you ❤️'];
-setInterval(saveMessagesToFile, 1000 * 60);
 
-
-const messagesFilePath = path.join(__dirname, 'messages.json');
-if (fs.existsSync(messagesFilePath)) {
-    fs.readFile(messagesFilePath, (err, data) => {
-        if (err) {
-            console.error('Error reading messages from file:', err);
-        } else {
-            messages = JSON.parse(data);
-            console.log('Loaded messages from file:', messages);
+// Function to save messages to a file
+function saveMessagesToFile() {
+    console.log('Saving messages to file');
+    console.log('Messages:', messages);
+    fetch('https://riddhimandal.com/textingapp/save', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ messages }),
+    }).then(
+        res => {
+            console.log('Messages saved successfully');
+            console.log('Response:', res);
         }
+    
+    ).catch(err => {
+        console.error('Error saving messages:', err);
     });
 }
+
+// Fetch initial messages
+fetch('https://riddhimandal.com/textingapp/get')
+    .then(response => response.json())
+    .then(data => {
+        messages = data;
+        // Save the messages to a file every 1 hour
+        setInterval(saveMessagesToFile, 1000 * 60 * 60);
+    })
+    .catch(err => {
+        console.error('Error fetching initial messages:', err);
+        process.exit(1);
+    });
 
 // Send endpoint
 app.post('/send', (req, res) => {
@@ -62,8 +69,8 @@ app.get('/', (req, res) => {
     res.status(200).sendFile(path.join(__dirname, 'public', 'send.html'));
 });
 
-// Receive endpoint, allow /receive or /receive.html or /receive.htm  or /receive.htm or /r or /r.html or /r.htm or /r.html or /r.htm
-app.get(['/receive','/r','/recieve','/rec']  , (req, res) => {
+// Receive endpoint
+app.get(['/receive', '/r', '/recieve', '/rec'], (req, res) => {
     res.status(200).sendFile(path.join(__dirname, 'public', 'receive.html'));
 });
 
@@ -72,7 +79,8 @@ app.get('/get', (req, res) => {
     res.status(200).send(messages);
 });
 
-
+// Initialize messages from file
+const messagesFilePath = path.join(__dirname, 'messages.json');
 app.get('/initmsgs', (req, res) => {
     fs.readFile(messagesFilePath, (err, data) => {
         if (err) {
@@ -102,7 +110,7 @@ function broadcast(message) {
     });
 }
 
-// Ping clients every minute seconds to keep the connection alive
+// Ping clients every minute to keep the connection alive
 function sendPing() {
     wss.clients.forEach(client => {
         if (client.readyState === WebSocket.OPEN) {
@@ -112,3 +120,4 @@ function sendPing() {
 }
 
 setInterval(sendPing, 1000 * 60);
+
